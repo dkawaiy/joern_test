@@ -1,30 +1,43 @@
 FROM ubuntu:20.04
 
-RUN sed -i 's@archive.ubuntu.com@mirrors.aliyun.com@g' /etc/apt/sources.list && \
-    sed -i 's@security.ubuntu.com@mirrors.aliyun.com@g' /etc/apt/sources.list
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    TZ=Asia/Shanghai \
+    JOERN_HOME=/joern
+ENV PATH="${JOERN_HOME}:${PATH}"
 
-# 安装依赖
-RUN apt update && \
-    apt install -y wget unzip universal-ctags openjdk-21-jdk bzip2 xz-utils gzip software-properties-common && \
-    add-apt-repository -y ppa:deadsnakes/ppa && \
-    apt install -y python3.12 python3.12-venv && \
-    apt clean && \
+# 换源与基础依赖（Java 17、解压、网络工具、ctags 等）
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      ca-certificates curl wget unzip git \
+      universal-ctags \
+      openjdk-17-jre-headless \
+      bzip2 xz-utils gzip locales && \
+    locale-gen en_US.UTF-8 && \
     rm -rf /var/lib/apt/lists/*
 
-ENV JOERN_HOME=/joern
-ENV PATH="$JOERN_HOME:$PATH"
-
-# 安装joern，删除不需要的前端
-RUN wget https://github.com/joernio/joern/releases/download/v4.0.353/joern-cli.zip && \
-    unzip joern-cli.zip && \
+# 安装 Joern 并精简不需要的前端
+ARG JOERN_VERSION=v4.0.353
+RUN wget -q https://github.com/joernio/joern/releases/download/${JOERN_VERSION}/joern-cli.zip && \
+    unzip -q joern-cli.zip && \
     mv joern-cli ${JOERN_HOME} && \
-    rm -rf joern-cli.zip && \
-    rm -rf ${JOERN_HOME}/frontends/csharpsrc2cpg && \
-    rm -rf ${JOERN_HOME}/frontends/ghidra2cpg && \
-    rm -rf ${JOERN_HOME}/frontends/gosrc2cpg && \
-    rm -rf ${JOERN_HOME}/frontends/swiftsrc2cpg && \
-    rm -rf ${JOERN_HOME}/frontends/pysrc2cpg && \
-    rm -rf ${JOERN_HOME}/frontends/rubysrc2cpg && \
-    rm -rf ${JOERN_HOME}/frontends/php2cpg && \
-    rm -rf ${JOERN_HOME}/frontends/jimple2cpg && \
-    chmod +x ${JOERN_HOME}/joern
+    rm -f joern-cli.zip && \
+    rm -rf ${JOERN_HOME}/frontends/csharpsrc2cpg \
+           ${JOERN_HOME}/frontends/ghidra2cpg \
+           ${JOERN_HOME}/frontends/gosrc2cpg \
+           ${JOERN_HOME}/frontends/swiftsrc2cpg \
+           ${JOERN_HOME}/frontends/pysrc2cpg \
+           ${JOERN_HOME}/frontends/rubysrc2cpg \
+           ${JOERN_HOME}/frontends/php2cpg \
+           ${JOERN_HOME}/frontends/jimple2cpg && \
+    chmod +x ${JOERN_HOME}/joern && \
+    joern --version
+
+# 复制 Joern 脚本到镜像内
+COPY parse.sc /workspace/parse.sc
+
+WORKDIR /root
+
+# 入口为 bash，容器内可直接运行 joern 命令
+ENTRYPOINT ["bash"]
